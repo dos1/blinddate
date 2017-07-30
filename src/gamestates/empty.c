@@ -31,16 +31,17 @@ struct GamestateResources {
 		ALLEGRO_LOCKED_REGION *mask;
 
 
-		ALLEGRO_BITMAP *light1, *light2, *light3, *tmp, *bg;
+		ALLEGRO_BITMAP *light1, *light2, *light3, *light4, *tmp, *bg;
 		struct Character *warthog, *table, *fire;
 		bool button;
 		int x, y;
 		float rand;
 
-
+		int stage;
+		bool drawing;
 };
 
-int Gamestate_ProgressCount = 1; // number of loading steps as reported by Gamestate_Load
+int Gamestate_ProgressCount = 9; // number of loading steps as reported by Gamestate_Load
 
 void SwitchSpritesheet(struct Game *game, struct Character *character, char *name) {
 	struct Spritesheet *tmp = character->spritesheets;
@@ -110,6 +111,7 @@ void Gamestate_Logic(struct Game *game, struct GamestateResources* data) {
 	             ((white/(float)(white+black)) * 100 + (white2/(float)(white2+black2)) * 100) - 100);
 
 	AnimateCharacter(game, data->fire, 1);
+	AnimateCharacter(game, data->warthog, 1);
 }
 
 void Gamestate_Draw(struct Game *game, struct GamestateResources* data) {
@@ -119,45 +121,86 @@ void Gamestate_Draw(struct Game *game, struct GamestateResources* data) {
 	al_draw_scaled_bitmap(data->bg, 0, 0, al_get_bitmap_width(data->bg), al_get_bitmap_height(data->bg), 0, 0, game->viewport.width, game->viewport.height, 0);
 
 	SwitchSpritesheet(game, data->table, "1");
-	SwitchSpritesheet(game, data->warthog, "1");
-	DrawScaledCharacter(game, data->warthog, al_map_rgb(255,255,255), game->viewport.width / (float)3840, game->viewport.height / (float)2160, 0);
+	if (data->stage < 5) {
+		SwitchSpritesheet(game, data->warthog, "1");
+		DrawScaledCharacter(game, data->warthog, al_map_rgb(255,255,255), game->viewport.width / (float)3840, game->viewport.height / (float)2160, 0);
+	}
 	DrawScaledCharacter(game, data->table, al_map_rgb(255,255,255), game->viewport.width / (float)3840, game->viewport.height / (float)2160, 0);
 
-	al_set_target_bitmap(data->tmp);
-	al_clear_to_color(al_map_rgba(0,0,0,0));
+	if (data->stage >= 1) {
+		al_set_target_bitmap(data->tmp);
+		al_clear_to_color(al_map_rgba(0,0,0,0));
 
-	SwitchSpritesheet(game, data->table, "2");
-	SwitchSpritesheet(game, data->warthog, "2");
-	DrawScaledCharacter(game, data->warthog, al_map_rgb(255,255,255), game->viewport.width / (float)3840, game->viewport.height / (float)2160, 0);
-	DrawScaledCharacter(game, data->table, al_map_rgb(255,255,255), game->viewport.width / (float)3840, game->viewport.height / (float)2160, 0);
-	al_set_blender(ALLEGRO_ADD, ALLEGRO_ZERO, ALLEGRO_ALPHA); // now as a mask
-	al_draw_scaled_bitmap(data->light3, 0, 0, al_get_bitmap_width(data->light1), al_get_bitmap_height(data->light1), 0, 0, game->viewport.width, game->viewport.height, 0);
-	al_set_blender(ALLEGRO_ADD, ALLEGRO_ONE, ALLEGRO_INVERSE_ALPHA);
+		SwitchSpritesheet(game, data->table, "2");
+//		if (data->stage < 5) {
+		  SwitchSpritesheet(game, data->warthog, "2");
+			DrawScaledCharacter(game, data->warthog, al_map_rgb(255,255,255), game->viewport.width / (float)3840, game->viewport.height / (float)2160, 0);
+//		}
+		DrawScaledCharacter(game, data->table, al_map_rgb(255,255,255), game->viewport.width / (float)3840, game->viewport.height / (float)2160, 0);
+		al_set_blender(ALLEGRO_ADD, ALLEGRO_ZERO, ALLEGRO_ALPHA); // now as a mask
 
-	al_set_target_backbuffer(game->display);
-	al_draw_tinted_bitmap(data->tmp, al_map_rgba_f(data->rand, data->rand, data->rand, data->rand), 0, 0,  0);
+		ALLEGRO_BITMAP *bmp = data->light3;
+		if (data->stage == 1) {
+			bmp = data->light1;
+		}
+		if (data->stage == 2) {
+			bmp = data->light2;
+		}
+		if (data->stage > 3) {
+			bmp = data->light4;
+		}
 
+		al_draw_scaled_bitmap(bmp, 0, 0, al_get_bitmap_width(data->light1), al_get_bitmap_height(data->light1), 0, 0, game->viewport.width, game->viewport.height, 0);
+		al_set_blender(ALLEGRO_ADD, ALLEGRO_ONE, ALLEGRO_INVERSE_ALPHA);
 
-	al_set_target_bitmap(data->tmp);
-	al_clear_to_color(al_map_rgba(0,0,0,0));
+		al_set_target_backbuffer(game->display);
+		al_draw_tinted_bitmap(data->tmp, al_map_rgba_f(data->rand, data->rand, data->rand, data->rand), 0, 0,  0);
+	}
 
-	SwitchSpritesheet(game, data->table, "3");
-	SwitchSpritesheet(game, data->warthog, "3");
-	DrawScaledCharacter(game, data->warthog, al_map_rgb(255,255,255), game->viewport.width / (float)3840, game->viewport.height / (float)2160, 0);
-	DrawScaledCharacter(game, data->table, al_map_rgb(255,255,255), game->viewport.width / (float)3840, game->viewport.height / (float)2160, 0);
-	al_set_blender(ALLEGRO_ADD, ALLEGRO_ZERO, ALLEGRO_ALPHA); // now as a mask
-	al_draw_scaled_bitmap(data->light2, 0, 0, al_get_bitmap_width(data->light1), al_get_bitmap_height(data->light1), 0, 0, game->viewport.width, game->viewport.height, 0);
-	al_set_blender(ALLEGRO_ADD, ALLEGRO_ONE, ALLEGRO_INVERSE_ALPHA);
+	if (data->stage >= 2) {
+		al_set_target_bitmap(data->tmp);
+		al_clear_to_color(al_map_rgba(0,0,0,0));
 
-	al_set_target_backbuffer(game->display);
-	al_draw_tinted_bitmap(data->tmp, al_map_rgba_f(data->rand, data->rand, data->rand, data->rand), 0, 0,  0);
+		SwitchSpritesheet(game, data->table, "3");
+		if (data->stage < 5) {
+			SwitchSpritesheet(game, data->warthog, "3");
+		} else {
+			SwitchSpritesheet(game, data->warthog, "happy");
+		}
+		DrawScaledCharacter(game, data->warthog, al_map_rgb(255,255,255), game->viewport.width / (float)3840, game->viewport.height / (float)2160, 0);
+		DrawScaledCharacter(game, data->table, al_map_rgb(255,255,255), game->viewport.width / (float)3840, game->viewport.height / (float)2160, 0);
+		al_set_blender(ALLEGRO_ADD, ALLEGRO_ZERO, ALLEGRO_ALPHA); // now as a mask
 
+		ALLEGRO_BITMAP *bmp = data->light3;
+		if (data->stage == 2) {
+			bmp = data->light1;
+		}
+		if (data->stage == 3) {
+			bmp = data->light2;
+		}
+		if (data->stage > 4) {
+			bmp = data->light4;
+		}
+
+		al_draw_scaled_bitmap(bmp, 0, 0, al_get_bitmap_width(data->light1), al_get_bitmap_height(data->light1), 0, 0, game->viewport.width, game->viewport.height, 0);
+		al_set_blender(ALLEGRO_ADD, ALLEGRO_ONE, ALLEGRO_INVERSE_ALPHA);
+
+		al_set_target_backbuffer(game->display);
+		al_draw_tinted_bitmap(data->tmp, al_map_rgba_f(data->rand, data->rand, data->rand, data->rand), 0, 0,  0);
+	}
 
 	SwitchSpritesheet(game, data->table, "1");
-	SwitchSpritesheet(game, data->warthog, "1");
+	if (data->stage < 5) {
+		SwitchSpritesheet(game, data->warthog, "1");
+	}
 
-	DrawScaledCharacter(game, data->fire, al_map_rgb(255,255,255), game->viewport.width / (float)3840, game->viewport.height / (float)2160, 0);
+	if (data->stage) {
+		DrawScaledCharacter(game, data->fire, al_map_rgb(255,255,255), game->viewport.width / (float)3840, game->viewport.height / (float)2160, 0);
+	}
 
+	if (!data->drawing) {
+	return;
+	}
 	al_draw_filled_rectangle(0, 0, al_get_display_width(game->display), al_get_display_height(game->display), al_map_rgba(0,0,0,127));
 	al_draw_tinted_scaled_bitmap(data->maskbmp, al_map_rgba(127,127,127,127), 0, 0, al_get_bitmap_width(data->maskbmp), al_get_bitmap_height(data->maskbmp), 0, 0, game->viewport.width, game->viewport.height, 0);
 	al_draw_scaled_bitmap(data->canvas, 0, 0, al_get_bitmap_width(data->canvas), al_get_bitmap_height(data->canvas), 0, 0, game->viewport.width, game->viewport.height, 0);
@@ -212,6 +255,20 @@ void Gamestate_ProcessEvent(struct Game *game, struct GamestateResources* data, 
 		al_set_target_backbuffer(game->display);
 	}
 
+	if ((ev->type==ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_D)) {
+		data->drawing = !data->drawing;
+	}
+
+	if ((ev->type==ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_SPACE)) {
+		data->stage++;
+		if (data->stage == 5) {
+			SelectSpritesheet(game, data->warthog, "happy");
+		}
+		if (data->stage == 6) {
+			data->stage = 0;
+		}
+	}
+
 	if (ev->type == ALLEGRO_EVENT_DISPLAY_RESIZE) {
 		al_destroy_bitmap(data->tmp);
 		data->tmp = CreateNotPreservedBitmap(game->viewport.width, game->viewport.height);
@@ -247,7 +304,9 @@ void* Gamestate_Load(struct Game *game, void (*progress)(struct Game*)) {
 	data->font = al_create_builtin_font();
 
 	data->bg = al_load_bitmap(GetDataFilePath(game, "bg.png"));
+	progress(game); // report that we progressed with the loading, so the engine can draw a progress bar
 	data->canvas = al_create_bitmap(320*2, 180*2);
+	progress(game); // report that we progressed with the loading, so the engine can draw a progress bar
 
 	al_set_target_bitmap(data->canvas);
 	al_clear_to_color(al_map_rgba(0, 0, 0, 0));
@@ -255,17 +314,25 @@ void* Gamestate_Load(struct Game *game, void (*progress)(struct Game*)) {
 
 	data->maskbmp = al_load_bitmap(GetDataFilePath(game, "mask.png"));
 	data->mask = al_lock_bitmap(data->maskbmp, ALLEGRO_PIXEL_FORMAT_RGBA_8888, ALLEGRO_LOCK_READONLY);
+	progress(game); // report that we progressed with the loading, so the engine can draw a progress bar
 
 	data->tmp = CreateNotPreservedBitmap(game->viewport.width, game->viewport.height);
 
 	data->light1 = al_create_bitmap(320*2, 180*2);
 	data->light2 = al_create_bitmap(320*2, 180*2);
 	data->light3 = al_create_bitmap(320*2, 180*2);
+	data->light4 = al_create_bitmap(320*2, 180*2);
 
 	GenerateLight(data->light1, 32);
+	progress(game); // report that we progressed with the loading, so the engine can draw a progress bar
 	GenerateLight(data->light2, 64);
+	progress(game); // report that we progressed with the loading, so the engine can draw a progress bar
 	GenerateLight(data->light3, 128);
+	progress(game); // report that we progressed with the loading, so the engine can draw a progress bar
 
+	al_set_target_bitmap(data->light4);
+	al_clear_to_color(al_map_rgb(255,255,255));
+	al_set_target_backbuffer(game->display);
 
 	data->warthog = CreateCharacter(game, "warthog");
 	data->table = CreateCharacter(game, "table");
@@ -274,12 +341,15 @@ void* Gamestate_Load(struct Game *game, void (*progress)(struct Game*)) {
 	RegisterSpritesheet(game, data->warthog, "1");
 	RegisterSpritesheet(game, data->warthog, "2");
 	RegisterSpritesheet(game, data->warthog, "3");
+	RegisterSpritesheet(game, data->warthog, "happy");
 	RegisterSpritesheet(game, data->table, "1");
 	RegisterSpritesheet(game, data->table, "2");
 	RegisterSpritesheet(game, data->table, "3");
 	RegisterSpritesheet(game, data->fire, "fire");
 	LoadSpritesheets(game, data->warthog);
+	progress(game); // report that we progressed with the loading, so the engine can draw a progress bar
 	LoadSpritesheets(game, data->table);
+	progress(game); // report that we progressed with the loading, so the engine can draw a progress bar
 	LoadSpritesheets(game, data->fire);
 
 	progress(game); // report that we progressed with the loading, so the engine can draw a progress bar
@@ -297,6 +367,7 @@ void Gamestate_Unload(struct Game *game, struct GamestateResources* data) {
 	al_destroy_bitmap(data->light1);
 	al_destroy_bitmap(data->light2);
 	al_destroy_bitmap(data->light3);
+	al_destroy_bitmap(data->light4);
 	al_destroy_bitmap(data->bg);
 	DestroyCharacter(game, data->fire);
 	DestroyCharacter(game, data->warthog);
@@ -322,6 +393,9 @@ void Gamestate_Start(struct Game *game, struct GamestateResources* data) {
 	SetCharacterPositionF(game, data->warthog, 0.3776, 0.04166, 0);
 	SetCharacterPositionF(game, data->table, 0.24505, 0.714814, 0);
 	SetCharacterPositionF(game, data->fire, 0.502, 0.6775, 0);
+
+	data->stage = 0;
+	data->drawing = false;
 
 }
 

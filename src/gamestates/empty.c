@@ -30,6 +30,7 @@ struct GamestateResources {
 		ALLEGRO_BITMAP *canvas, *maskbmp;
 		ALLEGRO_LOCKED_REGION *mask;
 		ALLEGRO_BITMAP *drawbmp;
+		ALLEGRO_BITMAP *pointer, *pencil;
 
 		ALLEGRO_BITMAP *sn, *sheart, *sberry, *swarthog;
 
@@ -45,6 +46,7 @@ struct GamestateResources {
 		bool drawing;
 
 		int timeleft, time;
+		bool cheat;
 
 		struct {
 				bool name;
@@ -136,6 +138,8 @@ bool Draw(struct Game *game, struct TM_Action *action, enum TM_ActionState state
 		al_set_target_bitmap(data->canvas);
 		al_clear_to_color(al_map_rgba(0, 0, 0, 0));
 		al_set_target_backbuffer(game->display);
+
+		al_hide_mouse_cursor(game->display);
 	}
 
 	if (state == TM_ACTIONSTATE_RUNNING) {
@@ -145,13 +149,22 @@ bool Draw(struct Game *game, struct TM_Action *action, enum TM_ActionState state
 	if (state == TM_ACTIONSTATE_DESTROY) {
 		// points counting
 
+		if (!game->config.fullscreen) {
+			al_show_mouse_cursor(game->display);
+		}
+
 		bool won = true;
 
 		PrintConsole(game, "score1: %f%%, score2: %f%%", data->score1 * 100, data->score2 * 100);
 
 		if (data->stage == 1) {
 
-			won = (data->score1 > 0.175) && (data->score2 > 0.15);
+			won = (data->score1 > 0.75) && (data->score2 > 0.45);
+
+			if (data->cheat) {
+				won = true;
+				data->cheat = false;
+			}
 
 			if (won) {
 				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
@@ -183,7 +196,11 @@ bool Draw(struct Game *game, struct TM_Action *action, enum TM_ActionState state
 
 		else if (data->stage == 2) {
 
-			won = (data->score1 > 0.175) && (data->score2 > 0.15);
+			won = (data->score1 > 0.8) && (data->score2 > 0.35);
+			if (data->cheat) {
+				won = true;
+				data->cheat = false;
+			}
 
 			if (won) {
 				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
@@ -221,7 +238,11 @@ data->stage--;
 
 		else if (data->stage == 3) {
 
-			won = (data->score1 > 0.175) && (data->score2 > 0.15);
+			won = (data->score1 > 0.85) && (data->score2 > 0.45);
+			if (data->cheat) {
+				won = true;
+				data->cheat = false;
+			}
 
 			if (won) {
 
@@ -293,7 +314,11 @@ data->stage--;
 
 		else if (data->stage == 4) {
 
-			won = (data->score1 > 0.175) && (data->score2 > 0.15);
+			won = (data->score1 > 0.9) && (data->score2 > 0.5);
+			if (data->cheat) {
+				won = true;
+				data->cheat = false;
+			}
 
 			if (won) {
 				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
@@ -647,6 +672,14 @@ void Gamestate_Draw(struct Game *game, struct GamestateResources* data) {
 	al_draw_scaled_bitmap(data->canvas, 0, 0, al_get_bitmap_width(data->canvas), al_get_bitmap_height(data->canvas), 0, 0, game->viewport.width, game->viewport.height, 0);
 
 	al_draw_filled_rectangle(0, game->viewport.height*0.98, game->viewport.width * data->timeleft / (float)data->time, game->viewport.height, al_map_rgb(255,255,255));
+
+	float x = data->x; float y = data->y;
+	x /= (float)al_get_bitmap_width(data->canvas);// * (float)game->viewport.width;
+	y /= (float)al_get_bitmap_height(data->canvas);// * (float)game->viewport.height;
+	ALLEGRO_BITMAP *pointer = data->button ? data->pencil : data->pointer;
+	al_draw_scaled_bitmap(pointer, 0, 0, al_get_bitmap_width(pointer), al_get_bitmap_height(pointer),
+	                      x * game->viewport.width, y * game->viewport.height,
+	                      game->viewport.width * 0.05, game->viewport.height * 0.06, 0);
 }
 
 void Gamestate_ProcessEvent(struct Game *game, struct GamestateResources* data, ALLEGRO_EVENT *ev) {
@@ -693,16 +726,14 @@ void Gamestate_ProcessEvent(struct Game *game, struct GamestateResources* data, 
 	}
 
 	if ((ev->type==ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_C)) {
-		al_set_target_bitmap(data->canvas);
-		al_clear_to_color(al_map_rgba(0, 0, 0, 0));
-		al_set_target_backbuffer(game->display);
+		data->cheat = true;
 	}
 
 	if ((ev->type==ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_FULLSTOP)) {
 		data->skip = true;
 	}
 
-	if ((ev->type==ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_D)) {
+/*	if ((ev->type==ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_D)) {
 		data->drawing = !data->drawing;
 		data->time = 60*6;
 		data->timeleft = data->time;
@@ -711,12 +742,15 @@ void Gamestate_ProcessEvent(struct Game *game, struct GamestateResources* data, 
 		al_set_target_bitmap(data->canvas);
 		al_clear_to_color(al_map_rgba(0, 0, 0, 0));
 		al_set_target_backbuffer(game->display);
-	}
+	}*/
 
 	if ((ev->type==ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_SPACE)) {
 		if (data->stage == 0){
 			TM_AddAction(data->timeline, &DecideWhatToDo, TM_AddToArgs(NULL, 1, data), "start");
+			data->stage++;
+			return;
 		}
+		return;
 		data->stage++;
 		if (data->stage == 5) {
 			SelectSpritesheet(game, data->warthog, "happy");
@@ -773,6 +807,7 @@ void* Gamestate_Load(struct Game *game, void (*progress)(struct Game*)) {
 	data->bgnoise = al_load_audio_stream(GetDataFilePath(game, "bg.flac"), 4, 1024);
 	al_attach_audio_stream_to_mixer(data->bgnoise, game->audio.fx);
 	al_set_audio_stream_playmode(data->bgnoise, ALLEGRO_PLAYMODE_LOOP);
+	al_set_audio_stream_gain(data->bgnoise, 0.8);
 	al_set_audio_stream_playing(data->bgnoise, false);
 
 	al_set_target_bitmap(data->canvas);
@@ -826,6 +861,9 @@ void* Gamestate_Load(struct Game *game, void (*progress)(struct Game*)) {
 	data->swarthog = al_load_bitmap(GetDataFilePath(game, "symbols/warthog.png"));
 
 	data->timeline = TM_Init(game, "timeline");
+
+	data->pointer =  al_load_bitmap(GetDataFilePath(game, "point.png"));
+	data->pencil =  al_load_bitmap(GetDataFilePath(game, "draw.png"));
 
 	progress(game); // report that we progressed with the loading, so the engine can draw a progress bar
 	return data;
@@ -884,6 +922,7 @@ void Gamestate_Start(struct Game *game, struct GamestateResources* data) {
 	al_set_audio_stream_playing(data->bgnoise, true);
 data->text = NULL;
 data->drawbmp = data->maskbmp;
+data->cheat = false;
 }
 
 void Gamestate_Stop(struct Game *game, struct GamestateResources* data) {

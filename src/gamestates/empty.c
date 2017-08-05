@@ -27,8 +27,7 @@ struct GamestateResources {
 		// It gets created on load and then gets passed around to all other function calls.
 		ALLEGRO_FONT *font, *smallfont;
 		unsigned int blink_counter;
-		ALLEGRO_BITMAP *canvas, *maskbmp;
-		ALLEGRO_LOCKED_REGION *mask;
+		ALLEGRO_BITMAP *canvas;
 		ALLEGRO_BITMAP *drawbmp;
 		ALLEGRO_BITMAP *pointer, *pencil;
 
@@ -544,46 +543,48 @@ if (data->end) {
 		data->button = false;
 	}
 
-	int width = al_get_bitmap_width(data->canvas);
-	int height = al_get_bitmap_height(data->canvas);
-	ALLEGRO_LOCKED_REGION *region = al_lock_bitmap(data->canvas, ALLEGRO_PIXEL_FORMAT_RGBA_8888, ALLEGRO_LOCK_READONLY);
+	if (data->drawbmp) {
+		int width = al_get_bitmap_width(data->canvas);
+		int height = al_get_bitmap_height(data->canvas);
+		ALLEGRO_LOCKED_REGION *region = al_lock_bitmap(data->canvas, ALLEGRO_PIXEL_FORMAT_RGBA_8888, ALLEGRO_LOCK_READONLY);
 
-	ALLEGRO_LOCKED_REGION *region2 = al_lock_bitmap(data->drawbmp, ALLEGRO_PIXEL_FORMAT_RGBA_8888, ALLEGRO_LOCK_READONLY);
+		ALLEGRO_LOCKED_REGION *region2 = al_lock_bitmap(data->drawbmp, ALLEGRO_PIXEL_FORMAT_RGBA_8888, ALLEGRO_LOCK_READONLY);
 
-	char *d = region->data;
-	char *mask = region2->data;
-	int white = 0; int black = 0; int white2 = 0; int black2 = 0;
-	for (int x = 0; x < width; x++) {
-		for (int y = 0; y < height; y++) {
-			//for (int z = 0; z < region->pixel_size; z++) {
-			//	d[x * region->pixel_size + region->pitch * y + z]--;
-			//}
-			if (d[x * region->pixel_size + region->pitch * y]) {
-				if (mask[x * region->pixel_size + region->pitch * y]) {
-					white++;
-				} else {
-					black++;
-				}
-			}
-			if (mask[x * region->pixel_size + region->pitch * y]) {
+		char *d = region->data;
+		char *mask = region2->data;
+		int white = 0; int black = 0; int white2 = 0; int black2 = 0;
+		for (int x = 0; x < width; x++) {
+			for (int y = 0; y < height; y++) {
+				//for (int z = 0; z < region->pixel_size; z++) {
+				//	d[x * region->pixel_size + region->pitch * y + z]--;
+				//}
 				if (d[x * region->pixel_size + region->pitch * y]) {
-					white2++;
-				} else {
-					black2++;
+					if (mask[x * region->pixel_size + region->pitch * y]) {
+						white++;
+					} else {
+						black++;
+					}
 				}
+				if (mask[x * region->pixel_size + region->pitch * y]) {
+					if (d[x * region->pixel_size + region->pitch * y]) {
+						white2++;
+					} else {
+						black2++;
+					}
+				}
+				//al_get_pixel(data->canvas, x, y);
 			}
-			//al_get_pixel(data->canvas, x, y);
+			//printf("%d\n", x);
 		}
-		//printf("%d\n", x);
-	}
-	//printf("END\n");
-	al_unlock_bitmap(data->canvas);
-	al_unlock_bitmap(data->drawbmp);
+		//printf("END\n");
+		al_unlock_bitmap(data->canvas);
+		al_unlock_bitmap(data->drawbmp);
 
-	data->score1 = (white/(float)(white+black)); // percentage of drawing inside
-	data->score2 = (white2/(float)(white2+black2)); // percentage of inside drawed on
-	//PrintConsole(game, "%f%% %f%% = %f%%", (white/(float)(white+black)) * 100, (white2/(float)(white2+black2)) * 100,
-	//             ((white/(float)(white+black)) * 100 + (white2/(float)(white2+black2)) * 100) - 100);
+		data->score1 = (white/(float)(white+black)); // percentage of drawing inside
+		data->score2 = (white2/(float)(white2+black2)); // percentage of inside drawed on
+		//PrintConsole(game, "%f%% %f%% = %f%%", (white/(float)(white+black)) * 100, (white2/(float)(white2+black2)) * 100,
+		//             ((white/(float)(white+black)) * 100 + (white2/(float)(white2+black2)) * 100) - 100);
+	}
 
 	AnimateCharacter(game, data->fire, 1);
 	AnimateCharacter(game, data->warthog, 1);
@@ -874,8 +875,6 @@ void* Gamestate_Load(struct Game *game, void (*progress)(struct Game*)) {
 	al_clear_to_color(al_map_rgba(0, 0, 0, 0));
 	al_set_target_backbuffer(game->display);
 
-	data->maskbmp = al_load_bitmap(GetDataFilePath(game, "mask.png"));
-//	data->mask = al_lock_bitmap(data->maskbmp, ALLEGRO_PIXEL_FORMAT_RGBA_8888, ALLEGRO_LOCK_READONLY);
 	progress(game); // report that we progressed with the loading, so the engine can draw a progress bar
 
 	data->tmp = CreateNotPreservedBitmap(game->viewport.width, game->viewport.height);
@@ -935,10 +934,19 @@ void Gamestate_Unload(struct Game *game, struct GamestateResources* data) {
 	// Called when the gamestate library is being unloaded.
 	// Good place for freeing all allocated memory and resources.
 	al_destroy_font(data->font);
+	al_destroy_font(data->smallfont);
 
-	//al_unlock_bitmap(data->maskbmp);
-	al_destroy_bitmap(data->maskbmp);
 	al_destroy_bitmap(data->canvas);
+	al_destroy_bitmap(data->pointer);
+	al_destroy_bitmap(data->pencil);
+	al_destroy_bitmap(data->sn);
+	al_destroy_bitmap(data->sheart);
+	al_destroy_bitmap(data->sberry);
+	al_destroy_bitmap(data->swarthog);
+
+	al_destroy_bitmap(data->tmp);
+	al_destroy_bitmap(data->heart);
+
 	al_destroy_bitmap(data->light1);
 	al_destroy_bitmap(data->light2);
 	al_destroy_bitmap(data->light3);
@@ -949,6 +957,7 @@ void Gamestate_Unload(struct Game *game, struct GamestateResources* data) {
 	DestroyCharacter(game, data->table);
 
 	al_destroy_audio_stream(data->bgnoise);
+	al_destroy_audio_stream(data->careless);
 
 	TM_Destroy(data->timeline);
 
@@ -977,13 +986,14 @@ void Gamestate_Start(struct Game *game, struct GamestateResources* data) {
 	data->stage = 0;
 	data->drawing = false;
 data->end = false;
+data->timeleft = -1;
   data->facts.bitten = false;
 	data->facts.name = false;
 	data->facts.weakness = false;
 	data->facts.crocodile = false;
 	al_set_audio_stream_playing(data->bgnoise, true);
 data->text = NULL;
-data->drawbmp = data->maskbmp;
+data->drawbmp = NULL;
 data->cheat = false;
 
 data->hearts = 0;

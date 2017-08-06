@@ -131,6 +131,51 @@ bool End(struct Game *game, struct TM_Action *action, enum TM_ActionState state)
 
 bool DecideWhatToDo(struct Game *game, struct TM_Action *action, enum TM_ActionState state);
 
+void CalculateScore(struct Game *game, struct GamestateResources* data) {
+	int width = al_get_bitmap_width(data->canvas);
+	int height = al_get_bitmap_height(data->canvas);
+	ALLEGRO_LOCKED_REGION *region = al_lock_bitmap(data->canvas, ALLEGRO_PIXEL_FORMAT_RGBA_8888, ALLEGRO_LOCK_READONLY);
+
+	ALLEGRO_LOCKED_REGION *region2 = al_lock_bitmap(data->drawbmp, ALLEGRO_PIXEL_FORMAT_RGBA_8888, ALLEGRO_LOCK_READONLY);
+
+	char *d = region->data;
+	char *mask = region2->data;
+	int white = 0; int black = 0; int white2 = 0; int black2 = 0;
+	for (int x = 0; x < width; x++) {
+		for (int y = 0; y < height; y++) {
+			//for (int z = 0; z < region->pixel_size; z++) {
+			//	d[x * region->pixel_size + region->pitch * y + z]--;
+			//}
+			if (d[x * region->pixel_size + region->pitch * y]) {
+				if (mask[x * region->pixel_size + region->pitch * y]) {
+					white++;
+				} else {
+					black++;
+				}
+			}
+			if (mask[x * region->pixel_size + region->pitch * y]) {
+				if (d[x * region->pixel_size + region->pitch * y]) {
+					white2++;
+				} else {
+					black2++;
+				}
+			}
+			//al_get_pixel(data->canvas, x, y);
+		}
+		//printf("%d\n", x);
+	}
+	//printf("END\n");
+	al_unlock_bitmap(data->canvas);
+	al_unlock_bitmap(data->drawbmp);
+
+	data->score1 = (white/(float)(white+black)); // percentage of drawing inside
+	data->score2 = (white2/(float)(white2+black2)); // percentage of inside drawed on
+
+	PrintConsole(game, "%f%% %f%% = %f%%", (white/(float)(white+black)) * 100, (white2/(float)(white2+black2)) * 100,
+	             ((white/(float)(white+black)) * 100 + (white2/(float)(white2+black2)) * 100) - 100);
+
+}
+
 bool Draw(struct Game *game, struct TM_Action *action, enum TM_ActionState state) {
 	struct GamestateResources *data = TM_GetArg(action->arguments, 0);
 	ALLEGRO_BITMAP *bmp = TM_GetArg(action->arguments, 1);
@@ -152,213 +197,215 @@ bool Draw(struct Game *game, struct TM_Action *action, enum TM_ActionState state
 	}
 
 	if (state == TM_ACTIONSTATE_RUNNING) {
-		return !data->drawing;
-	}
+		if (!data->drawing) {
 
-	if (state == TM_ACTIONSTATE_DESTROY) {
-		// points counting
+			// points counting
 
-		if (!game->config.fullscreen) {
-			al_show_mouse_cursor(game->display);
-		}
-
-		bool won = true;
-
-		PrintConsole(game, "score1: %f%%, score2: %f%%", data->score1 * 100, data->score2 * 100);
-
-		if (data->stage == 1) {
-
-			won = (data->score1 > 0.75) && (data->score2 > 0.45);
-
-			if (data->cheat) {
-				won = true;
-				data->cheat = false;
+			if (!game->config.fullscreen) {
+				al_show_mouse_cursor(game->display);
 			}
 
-			if (won) {
-				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-				             al_load_audio_stream(GetDataFilePath(game, "voices/player-04.flac"), 4, 1024),
-				             "Umm, Nolan.", true), "speak");
-				data->stage++;
-				TM_AddAction(data->timeline, &DecideWhatToDo, TM_AddToArgs(NULL, 1, data), "draw");
-			} else {
+			bool won = true;
 
-				    TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-						             al_load_audio_stream(GetDataFilePath(game, "voices/player-03.flac"), 4, 1024),
-						             "HRMPF!!!", true), "speak");
+			CalculateScore(game, data);
+			PrintConsole(game, "score1: %f%%, score2: %f%%", data->score1 * 100, data->score2 * 100);
 
-						TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-						             al_load_audio_stream(GetDataFilePath(game, "voices/greg-04.flac"), 4, 1024),
-						             "Oh, sorry, did I take it too aggressively? I'm so bad at this... Let's try again.", false), "speak");
+			if (data->stage == 1) {
 
-						// TODO: *sigh* Okay. Once again.
+				won = (data->score1 > 0.75) && (data->score2 > 0.45);
 
-						TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-						             al_load_audio_stream(GetDataFilePath(game, "voices/greg-02.flac"), 4, 1024),
-						             "So... uhmm... My name is Greg. What's yours?", false), "speak");
-
-						TM_AddAction(data->timeline, &Draw, TM_AddToArgs(NULL, 2, data, data->sn), "draw");
-			}
-		}
-
-
-
-		else if (data->stage == 2) {
-
-			won = (data->score1 > 0.8) && (data->score2 > 0.35);
-			if (data->cheat) {
-				won = true;
-				data->cheat = false;
-			}
-
-			if (won) {
-				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-				             al_load_audio_stream(GetDataFilePath(game, "voices/player-12.flac"), 4, 1024),
-				             "Strawberries!!!", true), "speak");
-				if (data->facts.crocodile) {
-					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-					             al_load_audio_stream(GetDataFilePath(game, "voices/greg-12.flac"), 4, 1024),
-					             "You sure do have a thing for strawberries, huh?", false), "speak");
-				} else {
-					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-					             al_load_audio_stream(GetDataFilePath(game, "voices/greg-11.flac"), 4, 1024),
-					             "Oh, that's cool! I like them too.", false), "speak");
-
-				}
-				data->stage++;
-				TM_AddAction(data->timeline, &DecideWhatToDo, TM_AddToArgs(NULL, 1, data), "draw");
-			} else {
-
-				    TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-						             al_load_audio_stream(GetDataFilePath(game, "voices/player-11.flac"), 4, 1024),
-						             "Um, hrmpf, no.", true), "speak");
-
-						TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-						             al_load_audio_stream(GetDataFilePath(game, "voices/greg-04.flac"), 4, 1024),
-						             "Oh, sorry, did I take it too aggressively? I'm so bad at this... Let's try again.", false), "speak");
-
-						// TODO: *sigh* Okay. Once again.
-data->stage--;
-            TM_AddAction(data->timeline, &DecideWhatToDo, TM_AddToArgs(NULL, 1, data), "draw");
-			}
-		}
-
-
-
-		else if (data->stage == 3) {
-
-			won = (data->score1 > 0.85) && (data->score2 > 0.45);
-			if (data->cheat) {
-				won = true;
-				data->cheat = false;
-			}
-
-			if (won) {
-
-				if (!data->facts.bitten) {
-				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-				             al_load_audio_stream(GetDataFilePath(game, "voices/player-14.flac"), 4, 1024),
-				             "Well, okay... When I was little, I got bitten by a warthog. I've been afraid of them ever since.", true), "speak");
-
-				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-				             al_load_audio_stream(GetDataFilePath(game, "voices/player-15.flac"), 4, 1024),
-				             "Uff. There it is. My biggest secret.", true), "speak");
-				data->facts.bitten = true;
-				} else {
-					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-					             al_load_audio_stream(GetDataFilePath(game, "voices/player-16.flac"), 4, 1024),
-					             "I think the thing with... you know, warthogs. That was it.", true), "speak");
-
+				if (data->cheat) {
+					won = true;
+					data->cheat = false;
 				}
 
-				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-				             al_load_audio_stream(GetDataFilePath(game, "voices/greg-19.flac"), 4, 1024),
-				             "That's okay. I'm proud of you, that was really brave.", false), "speak");
+				if (won) {
+					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+					             al_load_audio_stream(GetDataFilePath(game, "voices/player-04.flac"), 4, 1024),
+					             "Umm, Nolan.", true), "speak");
+					data->stage++;
+					TM_AddAction(data->timeline, &DecideWhatToDo, TM_AddToArgs(NULL, 1, data), "decidewhattodo");
+				} else {
+
+					    TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+							             al_load_audio_stream(GetDataFilePath(game, "voices/player-03.flac"), 4, 1024),
+							             "HRMPF!!!", true), "speak");
+
+							TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+							             al_load_audio_stream(GetDataFilePath(game, "voices/greg-04.flac"), 4, 1024),
+							             "Oh, sorry, did I take it too aggressively? I'm so bad at this... Let's try again.", false), "speak");
+
+							// TODO: *sigh* Okay. Once again.
+
+							TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+							             al_load_audio_stream(GetDataFilePath(game, "voices/greg-02.flac"), 4, 1024),
+							             "So... uhmm... My name is Greg. What's yours?", false), "speak");
+
+							TM_AddAction(data->timeline, &Draw, TM_AddToArgs(NULL, 2, data, data->sn), "draw");
+				}
+			}
 
 
-				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-				             al_load_audio_stream(GetDataFilePath(game, "voices/greg-21.flac"), 4, 1024),
-				             "You know, at first I was a bit afraid that we wouldn’t click, but I think I warmed up to you.", false), "speak");
-				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-				             al_load_audio_stream(GetDataFilePath(game, "voices/greg-22.flac"), 4, 1024),
-				             "There is just something you should know about me...", false), "speak");
-				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-				             al_load_audio_stream(GetDataFilePath(game, "voices/greg-23.flac"), 4, 1024),
-				             "But I worry that it will make you hate me.", false), "speak");
 
-				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-				             al_load_audio_stream(GetDataFilePath(game, "voices/player-17.flac"), 4, 1024),
-				             "You don’t really like strawberries, do you?", true), "speak");
+			else if (data->stage == 2) {
 
-				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-				             al_load_audio_stream(GetDataFilePath(game, "voices/greg-24.flac"), 4, 1024),
-				             "No, that's not it.", false), "speak");
+				won = (data->score1 > 0.8) && (data->score2 > 0.35);
+				if (data->cheat) {
+					won = true;
+					data->cheat = false;
+				}
 
-				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-				             al_load_audio_stream(GetDataFilePath(game, "voices/player-18.flac"), 4, 1024),
-				             "Is it connected to the fact that you’re all furry?", true), "speak");
-
-
-				TM_AddAction(data->timeline, &NextStage, TM_AddToArgs(NULL, 1, data), "nextstage");
-
-				TM_AddAction(data->timeline, &DecideWhatToDo, TM_AddToArgs(NULL, 1, data), "draw");
-			} else {
-
-				    TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-						             al_load_audio_stream(GetDataFilePath(game, "voices/player-13.flac"), 4, 1024),
-						             "I... was. Born. ... Too. Eh. ", true), "speak");
-
+				if (won) {
+					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+					             al_load_audio_stream(GetDataFilePath(game, "voices/player-12.flac"), 4, 1024),
+					             "Strawberries!!!", true), "speak");
+					if (data->facts.crocodile) {
 						TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-						             al_load_audio_stream(GetDataFilePath(game, "voices/greg-20.flac"), 4, 1024),
-						             "Hmm, are you joking? I'm really trying my best here to open up and you are just mocking me.", false), "speak");
-
+						             al_load_audio_stream(GetDataFilePath(game, "voices/greg-12.flac"), 4, 1024),
+						             "You sure do have a thing for strawberries, huh?", false), "speak");
+					} else {
 						TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-						             al_load_audio_stream(GetDataFilePath(game, "voices/greg-05.flac"), 4, 1024),
-						             "*sigh* Okay. Once again.", false), "speak");
-data->stage--;
-            TM_AddAction(data->timeline, &DecideWhatToDo, TM_AddToArgs(NULL, 1, data), "draw");
+						             al_load_audio_stream(GetDataFilePath(game, "voices/greg-11.flac"), 4, 1024),
+						             "Oh, that's cool! I like them too.", false), "speak");
+
+					}
+					data->stage++;
+					TM_AddAction(data->timeline, &DecideWhatToDo, TM_AddToArgs(NULL, 1, data), "decidewhattodo");
+				} else {
+
+					    TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+							             al_load_audio_stream(GetDataFilePath(game, "voices/player-11.flac"), 4, 1024),
+							             "Um, hrmpf, no.", true), "speak");
+
+							TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+							             al_load_audio_stream(GetDataFilePath(game, "voices/greg-04.flac"), 4, 1024),
+							             "Oh, sorry, did I take it too aggressively? I'm so bad at this... Let's try again.", false), "speak");
+
+							// TODO: *sigh* Okay. Once again.
+	data->stage--;
+	            TM_AddAction(data->timeline, &DecideWhatToDo, TM_AddToArgs(NULL, 1, data), "decidewhattodo");
+				}
 			}
+
+
+
+			else if (data->stage == 3) {
+
+				won = (data->score1 > 0.85) && (data->score2 > 0.45);
+				if (data->cheat) {
+					won = true;
+					data->cheat = false;
+				}
+
+				if (won) {
+
+					if (!data->facts.bitten) {
+					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+					             al_load_audio_stream(GetDataFilePath(game, "voices/player-14.flac"), 4, 1024),
+					             "Well, okay... When I was little, I got bitten by a warthog. I've been afraid of them ever since.", true), "speak");
+
+					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+					             al_load_audio_stream(GetDataFilePath(game, "voices/player-15.flac"), 4, 1024),
+					             "Uff. There it is. My biggest secret.", true), "speak");
+					data->facts.bitten = true;
+					} else {
+						TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+						             al_load_audio_stream(GetDataFilePath(game, "voices/player-16.flac"), 4, 1024),
+						             "I think the thing with... you know, warthogs. That was it.", true), "speak");
+
+					}
+
+					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+					             al_load_audio_stream(GetDataFilePath(game, "voices/greg-19.flac"), 4, 1024),
+					             "That's okay. I'm proud of you, that was really brave.", false), "speak");
+
+
+					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+					             al_load_audio_stream(GetDataFilePath(game, "voices/greg-21.flac"), 4, 1024),
+					             "You know, at first I was a bit afraid that we wouldn’t click, but I think I warmed up to you.", false), "speak");
+					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+					             al_load_audio_stream(GetDataFilePath(game, "voices/greg-22.flac"), 4, 1024),
+					             "There is just something you should know about me...", false), "speak");
+					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+					             al_load_audio_stream(GetDataFilePath(game, "voices/greg-23.flac"), 4, 1024),
+					             "But I worry that it will make you hate me.", false), "speak");
+
+					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+					             al_load_audio_stream(GetDataFilePath(game, "voices/player-17.flac"), 4, 1024),
+					             "You don’t really like strawberries, do you?", true), "speak");
+
+					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+					             al_load_audio_stream(GetDataFilePath(game, "voices/greg-24.flac"), 4, 1024),
+					             "No, that's not it.", false), "speak");
+
+					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+					             al_load_audio_stream(GetDataFilePath(game, "voices/player-18.flac"), 4, 1024),
+					             "Is it connected to the fact that you’re all furry?", true), "speak");
+
+
+					TM_AddAction(data->timeline, &NextStage, TM_AddToArgs(NULL, 1, data), "nextstage");
+
+					TM_AddAction(data->timeline, &DecideWhatToDo, TM_AddToArgs(NULL, 1, data), "decidewhattodo");
+				} else {
+
+					    TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+							             al_load_audio_stream(GetDataFilePath(game, "voices/player-13.flac"), 4, 1024),
+							             "I... was. Born. ... Too. Eh. ", true), "speak");
+
+							TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+							             al_load_audio_stream(GetDataFilePath(game, "voices/greg-20.flac"), 4, 1024),
+							             "Hmm, are you joking? I'm really trying my best here to open up and you are just mocking me.", false), "speak");
+
+							TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+							             al_load_audio_stream(GetDataFilePath(game, "voices/greg-05.flac"), 4, 1024),
+							             "*sigh* Okay. Once again.", false), "speak");
+	data->stage--;
+	            TM_AddAction(data->timeline, &DecideWhatToDo, TM_AddToArgs(NULL, 1, data), "decidewhattodo");
+				}
+			}
+
+
+			else if (data->stage == 4) {
+
+				won = (data->score1 > 0.9) && (data->score2 > 0.5);
+				if (data->cheat) {
+					won = true;
+					data->cheat = false;
+				}
+
+				if (won) {
+					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+					             al_load_audio_stream(GetDataFilePath(game, "voices/player-19.flac"), 4, 1024),
+					             "Oh... oh! Um... I guess that's okay!", true), "speak");
+					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+					             al_load_audio_stream(GetDataFilePath(game, "voices/player-20.flac"), 4, 1024),
+					             "You're... nice! I'm sorry, I've been wrong about warthogs all this time.", true), "speak");
+					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+					             al_load_audio_stream(GetDataFilePath(game, "voices/player-21.flac"), 4, 1024),
+					             "Would you maybe... want to spend more time... with me?", true), "speak");
+					TM_AddAction(data->timeline, &NextStage, TM_AddToArgs(NULL, 1, data), "nextstage");
+
+					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+					             al_load_audio_stream(GetDataFilePath(game, "voices/greg-26.flac"), 4, 1024),
+					             "Oh, really? Absolutely!", false), "speak");
+
+					TM_AddAction(data->timeline, &End, TM_AddToArgs(NULL, 1, data), "end");
+					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+					             al_load_audio_stream(GetDataFilePath(game, "voices/love.flac"), 4, 1024),
+					             NULL, false), "speak");
+
+				} else {
+					TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
+					             al_load_audio_stream(GetDataFilePath(game, "voices/player-01.flac"), 4, 1024),
+					             "Uhm...", true), "speak");
+
+					TM_AddAction(data->timeline, &Draw, TM_AddToArgs(NULL, 2, data, data->sheart), "draw");
+
+				}
+			}
+			return true;
 		}
-
-
-		else if (data->stage == 4) {
-
-			won = (data->score1 > 0.9) && (data->score2 > 0.5);
-			if (data->cheat) {
-				won = true;
-				data->cheat = false;
-			}
-
-			if (won) {
-				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-				             al_load_audio_stream(GetDataFilePath(game, "voices/player-19.flac"), 4, 1024),
-				             "Oh... oh! Um... I guess that's okay!", true), "speak");
-				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-				             al_load_audio_stream(GetDataFilePath(game, "voices/player-20.flac"), 4, 1024),
-				             "You're... nice! I'm sorry, I've been wrong about warthogs all this time.", true), "speak");
-				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-				             al_load_audio_stream(GetDataFilePath(game, "voices/player-21.flac"), 4, 1024),
-				             "Would you maybe... want to spend more time... with me?", true), "speak");
-				TM_AddAction(data->timeline, &NextStage, TM_AddToArgs(NULL, 1, data), "nextstage");
-
-				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-				             al_load_audio_stream(GetDataFilePath(game, "voices/greg-26.flac"), 4, 1024),
-				             "Oh, really? Absolutely!", false), "speak");
-
-				TM_AddAction(data->timeline, &End, TM_AddToArgs(NULL, 1, data), "end");
-				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-				             al_load_audio_stream(GetDataFilePath(game, "voices/love.flac"), 4, 1024),
-				             NULL, false), "speak");
-
-			} else {
-				TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data,
-				             al_load_audio_stream(GetDataFilePath(game, "voices/player-01.flac"), 4, 1024),
-				             "Uhm...", true), "speak");
-
-				TM_AddAction(data->timeline, &Draw, TM_AddToArgs(NULL, 2, data, data->sheart), "draw");
-
-			}
-		}
+		return false;
 
 
 
@@ -368,6 +415,10 @@ data->stage--;
 	return false;
 }
 
+int WrappedTextWithShadow(struct Game *game, ALLEGRO_FONT *font, ALLEGRO_COLOR color, float x, float y, int width, int flags, char const *text) {
+	     DrawWrappedText(font, al_map_rgba(0,0,0,255), x+(4/1920.0)*game->viewport.width, y+(4/1080.0)*game->viewport.height, width, flags, text);
+			 return DrawWrappedText(font, color, x, y, width, flags, text);
+}
 
 bool DecideWhatToDo(struct Game *game, struct TM_Action *action, enum TM_ActionState state) {
 	struct GamestateResources *data = TM_GetArg(action->arguments, 0);
@@ -393,7 +444,7 @@ bool DecideWhatToDo(struct Game *game, struct TM_Action *action, enum TM_ActionS
 			data->facts.name = true;
 			TM_AddAction(data->timeline, &Draw, TM_AddToArgs(NULL, 2, data, data->sn), "draw");
 
-//			TM_AddAction(data->timeline, &DecideWhatToDo, TM_AddToArgs(NULL, 1, data), "draw");
+//			TM_AddAction(data->timeline, &DecideWhatToDo, TM_AddToArgs(NULL, 1, data), "decidewhattodo");
 
 		}
 
@@ -543,49 +594,6 @@ if (data->end) {
 		data->button = false;
 	}
 
-	if (data->drawbmp) {
-		int width = al_get_bitmap_width(data->canvas);
-		int height = al_get_bitmap_height(data->canvas);
-		ALLEGRO_LOCKED_REGION *region = al_lock_bitmap(data->canvas, ALLEGRO_PIXEL_FORMAT_RGBA_8888, ALLEGRO_LOCK_READONLY);
-
-		ALLEGRO_LOCKED_REGION *region2 = al_lock_bitmap(data->drawbmp, ALLEGRO_PIXEL_FORMAT_RGBA_8888, ALLEGRO_LOCK_READONLY);
-
-		char *d = region->data;
-		char *mask = region2->data;
-		int white = 0; int black = 0; int white2 = 0; int black2 = 0;
-		for (int x = 0; x < width; x++) {
-			for (int y = 0; y < height; y++) {
-				//for (int z = 0; z < region->pixel_size; z++) {
-				//	d[x * region->pixel_size + region->pitch * y + z]--;
-				//}
-				if (d[x * region->pixel_size + region->pitch * y]) {
-					if (mask[x * region->pixel_size + region->pitch * y]) {
-						white++;
-					} else {
-						black++;
-					}
-				}
-				if (mask[x * region->pixel_size + region->pitch * y]) {
-					if (d[x * region->pixel_size + region->pitch * y]) {
-						white2++;
-					} else {
-						black2++;
-					}
-				}
-				//al_get_pixel(data->canvas, x, y);
-			}
-			//printf("%d\n", x);
-		}
-		//printf("END\n");
-		al_unlock_bitmap(data->canvas);
-		al_unlock_bitmap(data->drawbmp);
-
-		data->score1 = (white/(float)(white+black)); // percentage of drawing inside
-		data->score2 = (white2/(float)(white2+black2)); // percentage of inside drawed on
-		//PrintConsole(game, "%f%% %f%% = %f%%", (white/(float)(white+black)) * 100, (white2/(float)(white2+black2)) * 100,
-		//             ((white/(float)(white+black)) * 100 + (white2/(float)(white2+black2)) * 100) - 100);
-	}
-
 	AnimateCharacter(game, data->fire, 1);
 	AnimateCharacter(game, data->warthog, 1);
 }
@@ -690,13 +698,13 @@ void Gamestate_Draw(struct Game *game, struct GamestateResources* data) {
 				al_draw_filled_rectangle(0, game->viewport.height * (pos - 0.02), game->viewport.width, game->viewport.height, al_map_rgba(0,0,0,128));
 			}
 
-			DrawWrappedTextWithShadow(data->smallfont, al_map_rgba_f(1,1,1,1), game->viewport.width * 0.05, game->viewport.height * pos, game->viewport.width * 0.9, ALLEGRO_ALIGN_CENTER, data->text);
+			WrappedTextWithShadow(game, data->smallfont, al_map_rgba_f(1,1,1,1), game->viewport.width * 0.05, game->viewport.height * pos, game->viewport.width * 0.9, ALLEGRO_ALIGN_CENTER, data->text);
 
 		} else {
 			if (data->stage >= 4) {
 				al_draw_filled_rectangle(0, 0, game->viewport.width, game->viewport.height * 0.15,  al_map_rgba(0,0,0,128));
 			}
-			DrawWrappedTextWithShadow(data->smallfont, al_map_rgba_f(1,1,1,1), game->viewport.width * 0.05, game->viewport.height * 0.05, game->viewport.width * 0.9, ALLEGRO_ALIGN_CENTER, data->text);
+			WrappedTextWithShadow(game, data->smallfont, al_map_rgba_f(1,1,1,1), game->viewport.width * 0.05, game->viewport.height * 0.05, game->viewport.width * 0.9, ALLEGRO_ALIGN_CENTER, data->text);
 		}
 	}
 
@@ -719,8 +727,8 @@ void Gamestate_Draw(struct Game *game, struct GamestateResources* data) {
 
 	if (data->end) {
 
-		DrawTextWithShadow(data->font, al_map_rgba_f(data->rand, data->rand, data->rand, data->rand), game->viewport.width * 0.2, game->viewport.height * 0.3, ALLEGRO_ALIGN_CENTER, "LOVE");
-		DrawTextWithShadow(data->font, al_map_rgba_f(data->rand, data->rand, data->rand, data->rand), game->viewport.width * 0.83, game->viewport.height * 0.6, ALLEGRO_ALIGN_CENTER, "LOVE");
+		al_draw_text(data->font, al_map_rgba_f(data->rand, data->rand, data->rand, data->rand), game->viewport.width * 0.2, game->viewport.height * 0.3, ALLEGRO_ALIGN_CENTER, "LOVE");
+		al_draw_text(data->font, al_map_rgba_f(data->rand, data->rand, data->rand, data->rand), game->viewport.width * 0.83, game->viewport.height * 0.6, ALLEGRO_ALIGN_CENTER, "LOVE");
 
 		al_draw_scaled_bitmap(data->heart, 0, 0, al_get_bitmap_width(data->heart), al_get_bitmap_height(data->heart),
 		                      (0.1 + cos(data->hearts) * 0.15) * game->viewport.width, data->heart1 * game->viewport.height,
@@ -731,6 +739,7 @@ void Gamestate_Draw(struct Game *game, struct GamestateResources* data) {
 		                      game->viewport.width * 0.06, game->viewport.height * 0.12, 0);
 
 	}
+
 }
 
 void Gamestate_ProcessEvent(struct Game *game, struct GamestateResources* data, ALLEGRO_EVENT *ev) {
@@ -933,6 +942,8 @@ void* Gamestate_Load(struct Game *game, void (*progress)(struct Game*)) {
 void Gamestate_Unload(struct Game *game, struct GamestateResources* data) {
 	// Called when the gamestate library is being unloaded.
 	// Good place for freeing all allocated memory and resources.
+	TM_Destroy(data->timeline);
+
 	al_destroy_font(data->font);
 	al_destroy_font(data->smallfont);
 
@@ -958,8 +969,6 @@ void Gamestate_Unload(struct Game *game, struct GamestateResources* data) {
 
 	al_destroy_audio_stream(data->bgnoise);
 	al_destroy_audio_stream(data->careless);
-
-	TM_Destroy(data->timeline);
 
 	free(data);
 }

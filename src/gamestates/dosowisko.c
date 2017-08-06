@@ -23,7 +23,7 @@
 #include <libsuperderpy.h>
 
 #define NEXT_GAMESTATE "holypangolin"
-#define SKIP_GAMESTATE "empty"
+#define SKIP_GAMESTATE "date"
 
 struct GamestateResources {
 		ALLEGRO_FONT *font;

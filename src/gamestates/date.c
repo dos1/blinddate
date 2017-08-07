@@ -66,6 +66,8 @@ struct GamestateResources {
 
 		float heart1, heart2, hearts;
 		ALLEGRO_BITMAP *heart;
+
+		bool touch;
 };
 
 bool Speak(struct Game *game, struct TM_Action *action, enum TM_ActionState state) {
@@ -605,11 +607,16 @@ void Gamestate_Draw(struct Game *game, struct GamestateResources* data) {
 	al_draw_scaled_bitmap(data->bg, 0, 0, al_get_bitmap_width(data->bg), al_get_bitmap_height(data->bg), 0, 0, game->viewport.width, game->viewport.height, 0);
 
 	SwitchSpritesheet(game, data->table, "1");
+
+	int scale = 1;
+#ifdef ALLEGRO_ANDROID
+	scale = 2;
+#endif
 	if ((data->stage < 5) && (data->stage)) {
 		SwitchSpritesheet(game, data->warthog, "1");
-		DrawScaledCharacter(game, data->warthog, al_map_rgb(255,255,255), game->viewport.width / (float)3840, game->viewport.height / (float)2160, 0);
+		DrawScaledCharacter(game, data->warthog, al_map_rgb(255,255,255), scale * game->viewport.width / (float)3840, scale * game->viewport.height / (float)2160, 0);
 	}
-	DrawScaledCharacter(game, data->table, al_map_rgb(255,255,255), game->viewport.width / (float)3840, game->viewport.height / (float)2160, 0);
+	DrawScaledCharacter(game, data->table, al_map_rgb(255,255,255), scale * game->viewport.width / (float)3840, scale * game->viewport.height / (float)2160, 0);
 
 	if (data->stage >= 1) {
 		al_set_target_bitmap(data->tmp);
@@ -618,9 +625,9 @@ void Gamestate_Draw(struct Game *game, struct GamestateResources* data) {
 		SwitchSpritesheet(game, data->table, "2");
 //		if (data->stage < 5) {
 		  SwitchSpritesheet(game, data->warthog, "2");
-			DrawScaledCharacter(game, data->warthog, al_map_rgb(255,255,255), game->viewport.width / (float)3840, game->viewport.height / (float)2160, 0);
+			DrawScaledCharacter(game, data->warthog, al_map_rgb(255,255,255), scale * game->viewport.width / (float)3840, scale * game->viewport.height / (float)2160, 0);
 //		}
-		DrawScaledCharacter(game, data->table, al_map_rgb(255,255,255), game->viewport.width / (float)3840, game->viewport.height / (float)2160, 0);
+		DrawScaledCharacter(game, data->table, al_map_rgb(255,255,255), scale * game->viewport.width / (float)3840, scale * game->viewport.height / (float)2160, 0);
 		al_set_blender(ALLEGRO_ADD, ALLEGRO_ZERO, ALLEGRO_ALPHA); // now as a mask
 
 		ALLEGRO_BITMAP *bmp = data->light3;
@@ -651,8 +658,8 @@ void Gamestate_Draw(struct Game *game, struct GamestateResources* data) {
 		} else {
 			SwitchSpritesheet(game, data->warthog, "happy");
 		}
-		DrawScaledCharacter(game, data->warthog, al_map_rgb(255,255,255), game->viewport.width / (float)3840, game->viewport.height / (float)2160, 0);
-		DrawScaledCharacter(game, data->table, al_map_rgb(255,255,255), game->viewport.width / (float)3840, game->viewport.height / (float)2160, 0);
+		DrawScaledCharacter(game, data->warthog, al_map_rgb(255,255,255), scale * game->viewport.width / (float)3840, scale * game->viewport.height / (float)2160, 0);
+		DrawScaledCharacter(game, data->table, al_map_rgb(255,255,255), scale * game->viewport.width / (float)3840, scale * game->viewport.height / (float)2160, 0);
 		al_set_blender(ALLEGRO_ADD, ALLEGRO_ZERO, ALLEGRO_ALPHA); // now as a mask
 
 		ALLEGRO_BITMAP *bmp = data->light3;
@@ -683,7 +690,11 @@ void Gamestate_Draw(struct Game *game, struct GamestateResources* data) {
 	} else {
 		al_draw_text(data->font, al_map_rgba_f(data->rand, data->rand, data->rand, data->rand), game->viewport.width / 2, game->viewport.height * 0.3, ALLEGRO_ALIGN_CENTER, "The Blind Date");
 		if (data->blink_counter < 40) {
-			al_draw_text(data->smallfont, al_map_rgba_f(data->rand, data->rand, data->rand, data->rand), game->viewport.width / 2, game->viewport.height * 0.55, ALLEGRO_ALIGN_CENTER, "Press SPACE...");
+			char *text = "Press SPACE...";
+#ifdef ALLEGRO_ANDROID
+			text = "Touch to start...";
+#endif
+			al_draw_text(data->smallfont, al_map_rgba_f(data->rand, data->rand, data->rand, data->rand), game->viewport.width / 2, game->viewport.height * 0.55, ALLEGRO_ALIGN_CENTER, text);
 		}
 	}
 
@@ -718,10 +729,12 @@ void Gamestate_Draw(struct Game *game, struct GamestateResources* data) {
 		float x = data->x; float y = data->y;
 		x /= (float)al_get_bitmap_width(data->canvas);// * (float)game->viewport.width;
 		y /= (float)al_get_bitmap_height(data->canvas);// * (float)game->viewport.height;
-		ALLEGRO_BITMAP *pointer = data->button ? data->pencil : data->pointer;
-		al_draw_scaled_bitmap(pointer, 0, 0, al_get_bitmap_width(pointer), al_get_bitmap_height(pointer),
-		                      x * game->viewport.width, y * game->viewport.height,
-		                      game->viewport.width * 0.05, game->viewport.height * 0.06, 0);
+		if (!data->touch) {
+			ALLEGRO_BITMAP *pointer = data->button ? data->pencil : data->pointer;
+			al_draw_scaled_bitmap(pointer, 0, 0, al_get_bitmap_width(pointer), al_get_bitmap_height(pointer),
+			                      x * game->viewport.width, y * game->viewport.height,
+			                      game->viewport.width * 0.05, game->viewport.height * 0.06, 0);
+		}
 
 	}
 
@@ -752,10 +765,13 @@ void Gamestate_ProcessEvent(struct Game *game, struct GamestateResources* data, 
 		// When there are no active gamestates, the engine will quit.
 	}
 
-	if (ev->type==ALLEGRO_EVENT_MOUSE_BUTTON_DOWN) {
-		if (ev->mouse.button==1) {
+	if ((ev->type==ALLEGRO_EVENT_MOUSE_BUTTON_DOWN) || (ev->type==ALLEGRO_EVENT_TOUCH_BEGIN)) {
+		if ((ev->mouse.button==1) || (ev->type==ALLEGRO_EVENT_TOUCH_BEGIN)) {
 			data->button = !data->button;
 			int x = ev->mouse.x, y = ev->mouse.y;
+			if (ev->type==ALLEGRO_EVENT_TOUCH_BEGIN) {
+				x = ev->touch.x; y = ev->touch.y;
+			}
 			WindowCoordsToViewport(game, &x, &y);
 			x *= al_get_bitmap_width(data->canvas) / (float)game->viewport.width;
 			y *= al_get_bitmap_height(data->canvas) / (float)game->viewport.height;
@@ -769,12 +785,16 @@ void Gamestate_ProcessEvent(struct Game *game, struct GamestateResources* data, 
 		}
 	}
 
-	if (ev->type==ALLEGRO_EVENT_MOUSE_AXES) {
+	if ((ev->type==ALLEGRO_EVENT_MOUSE_AXES) || (ev->type==ALLEGRO_EVENT_TOUCH_MOVE)) {
 		int x = ev->mouse.x, y = ev->mouse.y;
+		if (ev->type==ALLEGRO_EVENT_TOUCH_MOVE) {
+			data->touch = true;
+			x = ev->touch.x; y = ev->touch.y;
+		}
 		WindowCoordsToViewport(game, &x, &y);
 		x *= al_get_bitmap_width(data->canvas) / (float)game->viewport.width;
 		y *= al_get_bitmap_height(data->canvas) / (float)game->viewport.height;
-		if (data->button) {
+		if ((data->button) || ((ev->type==ALLEGRO_EVENT_TOUCH_MOVE) && (ev->touch.primary))) {
 			al_set_target_bitmap(data->canvas);
 			al_draw_line(data->x, data->y, x, y, al_map_rgb(255,255,255), 13);
 			al_draw_filled_rounded_rectangle(x-5, y-5, x+5, y+5, 2, 2, al_map_rgb(255,255,255));
@@ -808,7 +828,12 @@ void Gamestate_ProcessEvent(struct Game *game, struct GamestateResources* data, 
 		al_set_target_backbuffer(game->display);
 	}*/
 
-	if ((ev->type==ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_SPACE)) {
+	if (ev->type==ALLEGRO_EVENT_KEY_DOWN) {
+		data->touch = false;
+	}
+
+	if (((ev->type==ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_SPACE)) ||
+	  (ev->type==ALLEGRO_EVENT_TOUCH_BEGIN)) {
 		if (data->stage == 0){
 			TM_AddAction(data->timeline, &DecideWhatToDo, TM_AddToArgs(NULL, 1, data), "start");
 			data->stage++;
@@ -838,7 +863,7 @@ void GenerateLight(ALLEGRO_BITMAP *bitmap, int maxr) {
 	int width = al_get_bitmap_width(bitmap);
 	int height = al_get_bitmap_height(bitmap);
 	ALLEGRO_LOCKED_REGION *region = al_lock_bitmap(bitmap, ALLEGRO_PIXEL_FORMAT_RGBA_8888, ALLEGRO_LOCK_WRITEONLY);
-	char *d = region->data;
+	unsigned char *d = region->data;
 	for (int x = 0; x < width; x++) {
 		for (int y = 0; y < height; y++) {
 			float r = sqrt(pow(x-325, 2) + pow(y-256, 2));
@@ -1008,6 +1033,11 @@ data->cheat = false;
 data->hearts = 0;
 data->heart1 = 1;
 data->heart2 = 1.5;
+
+data->touch = false;
+#ifdef ALLEGRO_ANDROID
+data->touch = true;
+#endif
 }
 
 void Gamestate_Stop(struct Game *game, struct GamestateResources* data) {
